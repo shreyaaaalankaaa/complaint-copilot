@@ -1,13 +1,10 @@
-# AI-Powered Customer Complaint Management System
+# AI Complaint Management Copilot
 
-**AIVOA — Round 1, AI Product Engineer (Intern)**
+A LangGraph agent that turns pharmaceutical complaint emails and PDFs into structured, audited records: triage, extraction, completeness and duplicate checks, risk classification, and draft root-cause and CAPA recommendations. Reviewers correct fields in plain language through a chat copilot, and every write lands in an append-only audit trail.
 
-A complaint intake console for a pharmaceutical manufacturer handling both API and FDF
-products. A QA reviewer pastes a customer email or drops a complaint PDF into the copilot;
-a LangGraph agent reads it, fills the *Log Customer Complaint* form, and produces a risk
-assessment. The reviewer can then correct any field by talking to the copilot in plain
-language — *"sorry, the batch number is BMX240602 and affected quantity is 48 capsules"* —
-and the form updates in place.
+**Stack:** Python · FastAPI · LangGraph · Groq · PostgreSQL · SQLAlchemy 2.0 · React · Redux Toolkit
+
+*Built as a technical assignment. The brief's requirements are mapped to the code [below](#requirements--implementation).*
 
 ---
 
@@ -33,8 +30,6 @@ uvicorn app.main:app --reload --port 8000
 cd frontend && npm install && npm run dev
 ```
 
-Open <http://localhost:5173>. API docs at <http://localhost:8000/docs>.
-
 ```bash
 cd backend && pytest -q        # 18 tests
 python scripts/make_sample_data.py   # regenerate the demo PDFs and emails
@@ -52,18 +47,17 @@ a purchase order that must be **rejected** at triage, and an incomplete phone no
 | --- | --- |
 | React UI with Redux | `frontend/src/` — Redux Toolkit, 3 slices (`intakeSlice`, `complaintsSlice`, `copilotSlice`) |
 | Python + FastAPI | `backend/app/main.py`, routers in `backend/app/api/` |
-| LangGraph agent | `backend/app/agents/graph.py` — 11 nodes, conditional entry, conditional routing, fan-out |
+| LangGraph agent | `backend/app/agents/graph.py` — 12 nodes, conditional entry, conditional routing, fan-out |
 | Groq `gemma2-9b-it` | extraction, triage, risk, summary, corrections — `backend/app/services/llm.py` |
 | Groq `llama-3.3-70b-versatile` | root cause, CAPA, copilot Q&A — same router, `tier="reasoning"` |
 | Postgres | SQLAlchemy 2.0 models in `backend/app/models.py`, `docker-compose.yml` |
-| Google Inter | `frontend/index.html`, `--mono` for identifiers only |
 | Workflow from the demo | prompt or PDF/email → form populated → AI copilot risk assessment → conversational correction → commit |
-| Complaint Completeness Checker | `rules.completeness()`, node `completeness` |
-| Root Cause Recommendation | node `root_cause`, Ishikawa 6M with a verification step per hypothesis |
-| Duplicate Complaint Detection | `services/duplicates.py`, node `duplicates` |
-| CAPA Recommendation | node `capa` — correction / corrective / preventive / effectiveness split |
-| Complaint Summary | node `summary` |
-| AI Risk Classification | node `risk` + `services/rules.score_risk()` |
+| Complaint Completeness Checker | `rules.completeness()`, node `check_completeness` |
+| Root Cause Recommendation | node `recommend_root_cause`, Ishikawa 6M with a verification step per hypothesis |
+| Duplicate Complaint Detection | `services/duplicates.py`, node `scan_duplicates` |
+| CAPA Recommendation | node `draft_capa` — correction / corrective / preventive / effectiveness split |
+| Complaint Summary | node `write_summary` |
+| AI Risk Classification | node `classify_risk` + `services/rules.score_risk()` |
 | *(extra)* Non-complaint triage | node `triage` — a purchase order never becomes a QMS record |
 | *(extra)* GxP audit trail | `models.AuditLog`, append-only, before/after image on every write |
 | *(extra)* Field-level provenance | every field tagged AI or human with a confidence score |
@@ -95,7 +89,7 @@ Four things in this shape are deliberate:
 document; every turn after that patches the form the checkpointer is already holding for
 that `thread_id`. A correction sends no document — only the message.
 
-**A correction re-runs the analysis.** Both paths converge on `completeness`, so changing a
+**A correction re-runs the analysis.** Both paths converge on `check_completeness`, so changing a
 batch number re-checks completeness, re-scans for duplicates and re-scores risk. Changing a
 batch can turn an isolated defect into a recurring one, and the reviewer should see that
 before committing, not after.
@@ -127,7 +121,7 @@ declares what kind of thinking it needs rather than naming a model.
 can open, and whether a complaint is potentially reportable, are procedural decisions. They
 live in `services/rules.py` where a QA head can read them and a regulator can inspect them,
 and they give the same answer today and next Tuesday. The model adds judgement on top; it
-does not own the rule. There is also a **safety ratchet** in the `risk` node: the rule
+does not own the rule. There is also a **safety ratchet** in the `classify_risk` node: the rule
 engine may escalate the model's risk level, never lower it.
 
 **Every node degrades independently.** If Groq is unavailable or returns malformed JSON,
