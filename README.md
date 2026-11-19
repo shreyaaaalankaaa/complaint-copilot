@@ -8,6 +8,16 @@ A LangGraph agent that turns pharmaceutical complaint emails and PDFs into struc
 
 ---
 
+## Screenshots
+
+**A complaint PDF parsed into the intake form, with per-field confidence**
+
+![A complaint PDF parsed into the intake form, with per-field confidence](docs/screenshots/copilot-intake.png)
+
+**Complaint register with risk classification**
+
+![Complaint register with risk classification](docs/screenshots/copilot-register.png)
+
 ## Run it
 
 The application runs **with or without a Groq API key**. Without one, every node falls back
