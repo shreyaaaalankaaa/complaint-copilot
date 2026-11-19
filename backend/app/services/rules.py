@@ -12,6 +12,7 @@ Two jobs:
 """
 from __future__ import annotations
 
+import calendar
 import re
 from datetime import date, datetime
 
@@ -140,8 +141,17 @@ BATCH_RE = re.compile(
     r"([A-Za-z0-9][A-Za-z0-9\-/ ]{3,20})", re.I
 )
 # Prose forms: "Apollo Pharmacy reported ...", "... in Amoxicillin Capsules 500 mg"
+# The verb must not be followed by ":" -- otherwise the form label "Date raised:"
+# was read as a customer called "Date".
 REPORTER_RE = re.compile(r"^\s*([A-Z][\w&.\-]*(?:\s+[A-Z][\w&.\-]*){0,4})\s+"
-                         r"(?:reported|has reported|raised|complained|notified)", re.M)
+                         r"(?:reported|has reported|raised|complained|notified)\b(?!\s*:)", re.M)
+REPORTER_STOPWORDS = {"date", "complaint", "reference", "issue", "concern", "it", "this"}
+# Letterheads: "Northbridge Healthcare Ltd  |  Quality Assurance Department"
+ORG_SUFFIX_RE = re.compile(
+    r"^[ \t]*([A-Z][\w&.'\-]*(?:[ \t]+[A-Z&][\w&.'\-]*){0,5}[ \t]+"
+    r"(?:Ltd\.?|Limited|Pvt\.?[ \t]+Ltd\.?|Private[ \t]+Limited|Inc\.?|LLC|LLP|GmbH|PLC|plc|Co\.?|Corporation|Corp\.?))\b",
+    re.M,
+)
 PRODUCT_PROSE_RE = re.compile(
     r"\b([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*)\s+"
     r"(Capsules?|Tablets?|Injections?|Syrups?|Suspensions?|Ointments?|Creams?|API)\b"
@@ -153,12 +163,38 @@ QTY_RE = re.compile(r"\b(\d[\d,]{0,8}(?:\.\d+)?)\s?(tablets?|capsules?|vials?|bo
 DOSAGE_FORMS = ["tablet", "capsule", "injection", "syrup", "suspension", "ointment", "cream", "powder", "granule", "sachet", "vial", "ampoule"]
 
 
-def _find_date(text: str, labels: list[str]) -> date | None:
+# Pack dates are often printed as month/year only: "Mfg date: 02/2026".
+NUMERIC_MONTH_YEAR_RE = r"((?:0?[1-9]|1[0-2])\s*[/\-.]\s*(?:\d{4}|\d{2}))(?![\d/\-.])"
+
+
+def _month_year(value: str, end_of_month: bool) -> date | None:
+    month_text, year_text = re.split(r"\s*[/\-.]\s*", value.strip())
+    month, year = int(month_text), int(year_text)
+    if year < 100:
+        year += 2000
+    if not 1 <= month <= 12:
+        return None
+    if end_of_month:
+        return date(year, month, calendar.monthrange(year, month)[1])
+    return date(year, month, 1)
+
+
+def _find_date(text: str, labels: list[str], end_of_month: bool = False) -> date | None:
+    """Find the date after a label. Month/year-only dates resolve to the first
+    day of the month, or the last day for expiry dates ("01/2028" = valid all January)."""
     for label in labels:
+        numeric = re.search(rf"{label}[^A-Za-z0-9]{{0,15}}{NUMERIC_MONTH_YEAR_RE}", text, re.I)
+        if numeric:
+            parsed = _month_year(numeric.group(1), end_of_month)
+            if parsed:
+                return parsed
         month_year = re.search(rf"{label}[^A-Za-z0-9]{{0,15}}{MONTH_YEAR_RE}", text, re.I)
         if month_year:
             try:
-                return dateparser.parse(month_year.group(1), default=datetime(2000, 1, 1)).date()
+                parsed = dateparser.parse(month_year.group(1), default=datetime(2000, 1, 1)).date()
+                if end_of_month:
+                    parsed = parsed.replace(day=calendar.monthrange(parsed.year, parsed.month)[1])
+                return parsed
             except (ValueError, OverflowError):
                 pass
         match = re.search(rf"{label}[^A-Za-z0-9]{{0,15}}([0-9]{{1,4}}[-/\s.][A-Za-z0-9]{{1,9}}[-/\s.][0-9]{{2,4}})", text, re.I)
@@ -229,7 +265,7 @@ def heuristic_extract(text: str) -> tuple[dict, dict[str, float]]:
         except (ValueError, OverflowError, TypeError):
             pass
     put("received_date", _find_date(text, ["date raised", "date received", "received", "date of complaint", "complaint date"]), 0.6)
-    put("expiry_date", _find_date(text, ["expiry date", "exp date", "expiry", "expiration", "use before", "exp"]), 0.6)
+    put("expiry_date", _find_date(text, ["expiry date", "exp date", "expiry", "expiration", "use before", "exp"], end_of_month=True), 0.6)
     put("mfg_date", _find_date(text, ["mfg date", "manufacturing date", "manufactur", "mfd", "mfg"]), 0.6)
 
     lower = text.lower()
@@ -244,8 +280,17 @@ def heuristic_extract(text: str) -> tuple[dict, dict[str, float]]:
     # -- derived judgements ------------------------------------------------- #
     # Prose intake ("Apollo Pharmacy reported discoloured capsules in Amoxicillin
     # Capsules 500 mg") carries no labels at all, so read the sentence shape.
-    if "customer_name" not in draft and (reporter := REPORTER_RE.search(text)):
-        put("customer_name", reporter.group(1).strip(), 0.55)
+    if "customer_name" not in draft:
+        # A company name with a legal suffix near the top is the letterhead.
+        head = "\n".join(text.splitlines()[:8])
+        if (org := ORG_SUFFIX_RE.search(head)):
+            put("customer_name", org.group(1).strip(), 0.6)
+    if "customer_name" not in draft:
+        for reporter in REPORTER_RE.finditer(text):
+            name = reporter.group(1).strip()
+            if name.split()[0].lower() not in REPORTER_STOPWORDS:
+                put("customer_name", name, 0.55)
+                break
     if "product_name" not in draft and (product := PRODUCT_PROSE_RE.search(text)):
         name = f"{product.group(1)} {product.group(2)}"
         strength_hint = STRENGTH_RE.search(text[product.end() : product.end() + 40])

@@ -31,7 +31,7 @@ cd frontend && npm install && npm run dev
 ```
 
 ```bash
-cd backend && pytest -q        # 18 tests
+cd backend && pytest -q        # 22 tests
 python scripts/make_sample_data.py   # regenerate the demo PDFs and emails
 ```
 
@@ -48,7 +48,7 @@ a purchase order that must be **rejected** at triage, and an incomplete phone no
 | React UI with Redux | `frontend/src/` — Redux Toolkit, 3 slices (`intakeSlice`, `complaintsSlice`, `copilotSlice`) |
 | Python + FastAPI | `backend/app/main.py`, routers in `backend/app/api/` |
 | LangGraph agent | `backend/app/agents/graph.py` — 12 nodes, conditional entry, conditional routing, fan-out |
-| Groq `gemma2-9b-it` | extraction, triage, risk, summary, corrections — `backend/app/services/llm.py` |
+| Groq `llama-3.1-8b-instant` (the brief named `gemma2-9b-it`, which Groq retired on 8 Oct 2025; this is Groq's recommended replacement) | extraction, triage, risk, summary, corrections — `backend/app/services/llm.py` |
 | Groq `llama-3.3-70b-versatile` | root cause, CAPA, copilot Q&A — same router, `tier="reasoning"` |
 | Postgres | SQLAlchemy 2.0 models in `backend/app/models.py`, `docker-compose.yml` |
 | Workflow from the demo | prompt or PDF/email → form populated → AI copilot risk assessment → conversational correction → commit |
@@ -111,7 +111,7 @@ complaint is a regulatory failure, wrongly accepting an order costs a reviewer t
 
 ## Four engineering decisions
 
-**Model routing, not one model for everything.** `gemma2-9b-it` handles extraction, triage,
+**Model routing, not one model for everything.** `llama-3.1-8b-instant` handles extraction, triage,
 risk and corrections — high volume, schema-constrained, latency-sensitive.
 `llama-3.3-70b-versatile` handles root cause and CAPA — low volume, needs real reasoning
 over pharmaceutical context. `services/llm.py` exposes this as a `tier` argument so a node

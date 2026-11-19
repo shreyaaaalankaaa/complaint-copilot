@@ -40,7 +40,7 @@ def client():
 def test_health_reports_engine(client):
     body = client.get("/health").json()
     assert body["status"] == "ok"
-    assert body["fast_model"] == "gemma2-9b-it"
+    assert body["fast_model"] == "llama-3.1-8b-instant"
 
 
 def test_graph_runs_every_node(client):

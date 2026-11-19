@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +19,17 @@ from app.services.llm import llm_router
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 settings = get_settings()
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    logging.getLogger(__name__).info(
+        "AI engine: %s", "groq" if llm_router.enabled else "rule fallback (no GROQ_API_KEY)"
+    )
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title=settings.app_name,
     version="1.0.0",
     description="AI-powered customer complaint intake for pharmaceutical manufacturing (AIVOA Round 1).",
@@ -37,12 +48,6 @@ app.include_router(complaints.router, prefix=settings.api_prefix)
 app.include_router(copilot.router, prefix=settings.api_prefix)
 
 
-@app.on_event("startup")
-def on_startup() -> None:
-    Base.metadata.create_all(bind=engine)
-    logging.getLogger(__name__).info(
-        "AI engine: %s", "groq" if llm_router.enabled else "rule fallback (no GROQ_API_KEY)"
-    )
 
 
 @app.get("/health")

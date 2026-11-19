@@ -2,7 +2,7 @@
 
 Model routing
 -------------
-`gemma2-9b-it`            -> extraction, classification, completeness. High volume,
+`llama-3.1-8b-instant`            -> extraction, classification, completeness. High volume,
                              schema-constrained, latency-sensitive. Cheap and fast.
 `llama-3.3-70b-versatile` -> root cause, CAPA, copilot Q&A. Low volume, needs actual
                              reasoning over pharmaceutical context.

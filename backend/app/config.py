@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     # Groq. Two models on purpose -- see docs/ARCHITECTURE.md "Model routing".
     groq_api_key: str | None = None
-    fast_model: str = "gemma2-9b-it"
+    fast_model: str = "llama-3.1-8b-instant"
     reasoning_model: str = "llama-3.3-70b-versatile"
     llm_temperature: float = 0.1
     llm_timeout_s: int = 45
