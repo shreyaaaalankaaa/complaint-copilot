@@ -31,7 +31,8 @@ cd frontend && npm install && npm run dev
 ```
 
 ```bash
-cd backend && pytest -q        # 22 tests
+cd backend && pip install -r requirements-dev.txt && pytest -q   # 22 tests, also run in CI
+# GitHub Actions runs the backend tests and the frontend build on every push.
 python scripts/make_sample_data.py   # regenerate the demo PDFs and emails
 ```
 
