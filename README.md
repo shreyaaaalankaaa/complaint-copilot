@@ -5,7 +5,7 @@ A LangGraph agent that turns pharmaceutical complaint emails and PDFs into struc
 **Stack:** Python · FastAPI · LangGraph · Groq · PostgreSQL · SQLAlchemy 2.0 · React · Redux Toolkit
 
 *Built as a technical assignment. The brief's requirements are mapped to the code [below](#requirements--implementation).*
-
+**Live demo:** https://complaint-copilot-app.vercel.app (free hosting; the first load can take up to a minute)
 ---
 
 ## Screenshots
