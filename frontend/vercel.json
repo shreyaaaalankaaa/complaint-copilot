@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://complaint-copilot-xxxx.onrender.com/api/:path*" },
-    { "source": "/health", "destination": "https://complaint-copilot-xxxx.onrender.com/health" }
+    { "source": "/api/:path*", "destination": "https://complaint-copilot.onrender.com/api/:path*" },
+    { "source": "/health", "destination": "https://complaint-copilot.onrender.com/health" }
   ]
 }
